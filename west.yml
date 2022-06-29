@@ -21,6 +21,8 @@ manifest:
   remotes:
     - name: upstream
       url-base: https://github.com/zephyrproject-rtos
+    - name: filip
+      url-base: https://github.com/FilipZajdel
 
   #
   # Please add items below based on alphabetical order
@@ -83,7 +85,8 @@ manifest:
       groups:
         - hal
     - name: hal_nordic
-      revision: d9e50d7287fc381792f6f2ee6d37093e036fbd10
+      remote: filip
+      revision: bsim_15_4_support
       path: modules/hal/nordic
       groups:
         - hal
@@ -188,7 +191,8 @@ manifest:
       groups:
         - tools
     - name: nrf_hw_models
-      revision: b8cea37dbdc8fc58cc14b4e19fa850877a9da520
+      remote: filip
+      revision: bsim_15_4_support
       path: modules/bsim_hw_models/nrf_hw_models
     - name: open-amp
       revision: 8d53544871e1f300c478224faca6be8384ab0d04
