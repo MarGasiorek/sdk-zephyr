@@ -24,6 +24,9 @@ LOG_MODULE_REGISTER(net_ipv4, CONFIG_NET_IPV4_LOG_LEVEL);
 #include "udp_internal.h"
 #include "tcp_internal.h"
 #include "ipv4.h"
+#if defined(CONFIG_NET_FILTER)
+#include <zephyr/net/net_filter.h>
+#endif
 
 BUILD_ASSERT(sizeof(struct in_addr) == NET_IPV4_ADDR_SIZE);
 
@@ -329,6 +332,13 @@ enum net_verdict net_ipv4_input(struct net_pkt *pkt)
 	net_pkt_set_ipv4_ttl(pkt, hdr->ttl);
 
 	net_pkt_set_family(pkt, PF_INET);
+
+	#if defined(CONFIG_NET_FILTER)
+	if (nf_prerouting_hook(PF_INET, pkt) != NET_CONTINUE) {
+		/*Drop the packet */
+		return NET_DROP;
+	}
+	#endif
 
 	if (IS_ENABLED(CONFIG_NET_IPV4_FRAGMENT)) {
 		/* Check if this is a fragmented packet, and if so, handle reassembly */

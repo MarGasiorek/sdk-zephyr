@@ -29,6 +29,10 @@ LOG_MODULE_REGISTER(net_if, CONFIG_NET_IF_LOG_LEVEL);
 
 #include "net_stats.h"
 
+#if defined(CONFIG_NET_FILTER)
+#include <zephyr/net/net_filter.h>
+#endif
+
 #define REACHABLE_TIME (MSEC_PER_SEC * 30) /* in ms */
 /*
  * split the min/max random reachable factors into numerator/denominator
@@ -342,6 +346,14 @@ void net_if_queue_tx(struct net_if *iface, struct net_pkt *pkt)
 		net_pkt_unref(pkt);
 		return;
 	}
+
+	#if defined(CONFIG_NET_FILTER)
+	if (nf_postrouting_hook(pkt) != NET_CONTINUE) {
+		/* Drop the packet */
+		net_pkt_unref(pkt);
+		return;
+	}
+	#endif
 
 	uint8_t prio = net_pkt_priority(pkt);
 	uint8_t tc = net_tx_priority2tc(prio);

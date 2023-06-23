@@ -32,6 +32,9 @@ LOG_MODULE_REGISTER(net_conn, CONFIG_NET_CONN_LOG_LEVEL);
 #include "tcp_internal.h"
 #include "connection.h"
 #include "net_stats.h"
+#if defined(CONFIG_NET_FILTER)
+#include <zephyr/net/net_filter.h>
+#endif
 
 /** How long to wait for when cloning multicast packet */
 #define CLONE_TIMEOUT K_MSEC(100)
@@ -575,6 +578,13 @@ enum net_verdict net_conn_input(struct net_pkt *pkt,
 	struct net_if *pkt_iface = net_pkt_iface(pkt);
 	uint8_t pkt_family = net_pkt_family(pkt);
 	uint16_t src_port = 0U, dst_port = 0U;
+
+	#if defined(CONFIG_NET_FILTER)
+	if (nf_input_hook(pkt_family, pkt) != NET_CONTINUE) {
+		/*Drop the packet */
+		return NET_DROP;
+	}
+	#endif
 
 	if (IS_ENABLED(CONFIG_NET_IP) && (pkt_family == AF_INET || pkt_family == AF_INET6)) {
 		if (IS_ENABLED(CONFIG_NET_UDP) && proto == IPPROTO_UDP) {
