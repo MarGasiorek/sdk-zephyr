@@ -215,10 +215,146 @@ static int cmd_sample_quit(const struct shell *sh,
 	return 0;
 }
 
+#ifdef CONFIG_NET_FILTER
+#include <zephyr/net/net_filter.h>
+
+enum ip_rule{
+	any_ip,
+	block_ip,
+	allow_ip
+};
+
+static enum ip_rule current_rule = any_ip;
+static struct in_addr ipv4_addr;
+
+enum net_verdict ip_filter(struct net_pkt *pkt)
+{
+	enum net_verdict result = NET_CONTINUE;
+	char addr[NET_IPV4_ADDR_LEN];
+	struct in_addr *src_addr = (struct in_addr *)NET_IPV4_HDR(pkt)->src;
+
+	printk("\n=========== %s ===========\n\n", __FUNCTION__);
+
+	net_addr_ntop(AF_INET, src_addr, addr, NET_IPV4_ADDR_LEN);
+	bool ip_match = net_ipv4_addr_cmp(src_addr, &ipv4_addr);
+
+	if (ip_match && (current_rule == block_ip)) {
+		/* Block just one IP address */
+		result = NET_DROP;
+	}
+	else if(current_rule == allow_ip)
+	{
+		/* Unlock only one IP address */
+		if(ip_match) {
+			result = NET_CONTINUE;
+		}
+		else {
+			result = NET_DROP;
+		}
+	}
+
+	printk("IPv4 addr %s is %s\n", addr, (result == NET_CONTINUE) ? "passed" : "dropped");
+
+	printk("\n=================================\n");
+	return result;
+}
+
+enum net_verdict tcp_udp_filter(struct net_pkt *pkt)
+{
+	enum net_verdict result = NET_CONTINUE;
+	uint8_t proto = (uint8_t)NET_IPV4_HDR(pkt)->proto;
+
+	printk("\n=========== %s ===========\n\n", __FUNCTION__);
+
+	if(proto == IPPROTO_TCP || proto == IPPROTO_UDP){
+		result = NET_DROP;
+	}
+	else{
+		printk("\n=================================\n");
+		return NET_CONTINUE;
+	}
+
+	printk("%s is %s\n", (proto == IPPROTO_TCP) ? "TCP" : "UDP", (result == NET_CONTINUE) ? "passed" : "dropped");
+
+	printk("\n=================================\n");
+	return result;
+}
+
+#ifdef CONFIG_NET_IPV4
+	struct nf_hook_cfg ipv4_cfg = {
+		.hook_fn = ip_filter,
+		.hooknum = NF_IP_PRE_ROUTING,
+		.pf = PF_INET,
+		.priority = -50,
+	};
+
+	struct nf_hook_cfg proto_cfg = {
+		.hook_fn = tcp_udp_filter,
+		.hooknum = NF_IP_LOCAL_IN,
+		.pf = PF_INET,
+		.priority = -50,
+	};
+#endif
+
+static int cmd_sample_netfilter(const struct shell *sh,
+			  size_t argc, char *argv[])
+{
+	if(argc > 1){
+		if (!strcmp("ipv4", argv[1])) {
+			if(argc > 2 && !strcmp("any", argv[2])){
+				current_rule = any_ip;
+				nf_unregister_net_hook(&ipv4_cfg);
+				return 0;
+			}
+
+			if(argc > 3 && !strcmp("block", argv[2])) {
+				if (net_addr_pton(AF_INET, argv[3], &ipv4_addr)) {
+					printk("Invalid IP address: %s\n", argv[3]);
+					return -EINVAL;
+				}
+				current_rule = block_ip;
+				nf_unregister_net_hook(&ipv4_cfg);
+				nf_register_net_hook(&ipv4_cfg);
+				return 0;
+			}
+			else if(argc > 3 && !strcmp("allow", argv[2])) {
+				if (net_addr_pton(AF_INET, argv[3], &ipv4_addr)) {
+					printk("Invalid IP address: %s\n", argv[3]);
+					return -EINVAL;
+				}
+				current_rule = allow_ip;
+				nf_unregister_net_hook(&ipv4_cfg);
+				nf_register_net_hook(&ipv4_cfg);
+				return 0;
+			}
+		}
+		else if(!strcmp("tcp_udp", argv[1])){
+			if(argc > 2 && !strcmp("block", argv[2])){
+				nf_register_net_hook(&proto_cfg);
+				return 0;
+			}
+			else if(argc > 2 && !strcmp("allow", argv[2])){
+				nf_unregister_net_hook(&proto_cfg);
+				return 0;
+			}
+
+		}
+	}
+
+	printk("Invalid arguments\n");
+	return -EINVAL;
+}
+#endif
+
 SHELL_STATIC_SUBCMD_SET_CREATE(sample_commands,
 	SHELL_CMD(quit, NULL,
 		  "Quit the sample application\n",
 		  cmd_sample_quit),
+#ifdef CONFIG_NET_FILTER
+	SHELL_CMD(net_filter, NULL,
+		  "Setup net filter\n",
+		  cmd_sample_netfilter),
+#endif
 	SHELL_SUBCMD_SET_END
 );
 
