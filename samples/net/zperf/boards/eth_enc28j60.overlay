@@ -1,0 +1,13 @@
+/*
+ * Copyright (c) 2024 Nordic Semiconductor
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&spi130 {
+	ethernet: eth_spi@0 {
+		compatible = "microchip,enc28j60";
+		full-duplex;
+	};
+
+};
